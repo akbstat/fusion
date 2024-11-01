@@ -1,0 +1,19 @@
+[package]
+name = "fusion"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.91"
+calamine = "0.26.1"
+serde = { version = "1.0.213", features = ["derive"] }
+rtf2pdf = { path = "../rtf2pdf" }
+serde_json = "1.0.132"
+nanoid = "0.4.0"
+
+
+[[test]]
+name = "intergration"
+path = "tests/tests.rs"
