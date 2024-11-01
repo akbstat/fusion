@@ -31,7 +31,7 @@ pub struct File {
     pub size: u64,
 }
 
-pub fn convert_worker_number() -> usize {
+pub fn worker_number() -> usize {
     let default_workers = 5;
     match env::var(WORKER_NUMBER_ENV) {
         Ok(worker) => match worker.parse::<usize>() {

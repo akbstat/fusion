@@ -3,7 +3,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use super::{task::ConvertTask, worker::Worker};
 
 pub struct ConvertController {
-    status: Option<mpsc::Sender<ConvertTask>>,
+    sender: Option<mpsc::Sender<ConvertTask>>,
     workers: Vec<Worker>,
 }
 
@@ -25,7 +25,7 @@ impl ConvertController {
             ));
         }
         ConvertController {
-            status: Some(tx),
+            sender: Some(tx),
             workers,
         }
     }
@@ -33,7 +33,7 @@ impl ConvertController {
         let mut tasks = tasks.to_vec();
         tasks.sort_by(|x, y| x.source_size.partial_cmp(&y.source_size).unwrap());
         for task in tasks {
-            if let Some(sender) = self.status.as_ref() {
+            if let Some(sender) = self.sender.as_ref() {
                 sender.send(task).ok();
             }
         }
@@ -42,7 +42,7 @@ impl ConvertController {
 
 impl Drop for ConvertController {
     fn drop(&mut self) {
-        drop(self.status.take());
+        drop(self.sender.take());
         for worker in &mut self.workers {
             if let Some(handler) = worker.handler() {
                 handler.join().ok();

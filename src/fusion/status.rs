@@ -80,9 +80,12 @@ impl ShareStates {
         let progress = complete_task.div(all_task);
         let stage = if convert_complete.eq(&0) && combine_complete.eq(&0) {
             FusionStage::Created
-        } else if convert_complete.ne(&0) && combine_complete.eq(&0) {
+        } else if convert_complete.lt(&self.convert_tasks) && combine_complete.eq(&0) {
             FusionStage::Converting
-        } else if convert_complete.ne(&0) && combine_complete.eq(&0) && progress.ne(&100f64) {
+        } else if convert_complete.eq(&self.convert_tasks)
+            && combine_complete.lt(&self.combine_tasks)
+            && progress.lt(&100f64)
+        {
             FusionStage::Combining
         } else {
             FusionStage::Completed

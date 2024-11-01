@@ -11,7 +11,7 @@ use fusion::{
         controller::FusionController,
         logger::Logger,
         param::{FusionParam, FusionTask},
-        status::{FusionStage, ShareStates},
+        status::ShareStates,
     },
     utils::{workspace, File},
 };
@@ -25,14 +25,15 @@ fn fusion_integration_test() -> anyhow::Result<()> {
     let log_path = workspace.join("log.txt");
     let combine_stage_notifier = Arc::new(Condvar::new());
     let convert_complete = Arc::new(Mutex::new(false));
+    let (exit_tx, exit_rx) = mpsc::channel();
 
     // 0. prepare channels
     let (convert_tx, convert_rx) = mpsc::channel();
     let convert_tx = Arc::new(Mutex::new(convert_tx));
-    let (_, combine_rx) = mpsc::channel();
+    let (combine_tx, combine_rx) = mpsc::channel();
+    let combine_tx = Arc::new(Mutex::new(combine_tx));
     let (log_tx, log_rx) = mpsc::channel();
     let log_tx = Arc::new(Mutex::new(log_tx));
-    // let (exit_tx, exit_rx) = mpsc::channel();
 
     // 1. prepare status machine
     let state_machine = ShareStates::new(
@@ -59,26 +60,28 @@ fn fusion_integration_test() -> anyhow::Result<()> {
             phase = combine_stage_notifier.wait(phase).unwrap();
         }
         println!("[RUNNER] Combine start");
-        controller.combine().ok();
+        controller
+            .combine(Arc::clone(&combine_tx), Arc::clone(&log_tx))
+            .ok();
     });
-    let phase2 = Arc::clone(&convert_complete);
     let handler_1 = thread::spawn(move || loop {
         let (progress, stage) = state_machine.progress();
         println!("[STATUS] Current progress: {:.2}", progress);
         println!("[STATUS] Current Stage: {:?}", stage);
-        if stage.eq(&FusionStage::Combining) {
-            *phase2.lock().unwrap() = true;
+        if progress.eq(&1f64) {
+            exit_tx.send(()).ok();
+            break;
         }
-        // if progress.ge(&100f64) {
-        //     println!("share state machine exit");
-        //     exit_tx.send(()).unwrap();
-        //     return;
-        // }
         thread::sleep(Duration::from_secs(1));
     });
     let handler_2 = thread::spawn(move || loop {
         let content = logger.read().unwrap();
-        println!("[LOGGER] Fetch log: {}", content);
+        if !content.is_empty() {
+            println!("[LOGGER] Fetch log: {}", content);
+        }
+        if let Ok(_) = exit_rx.try_recv() {
+            break;
+        }
         thread::sleep(Duration::from_secs(1));
     });
     handler_0.join().unwrap();

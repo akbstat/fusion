@@ -1,8 +1,8 @@
 use crate::{
-    combiner::pdf_combine::PDFCombiner,
+    combiner::pdf::controller::PDFCombineController,
     converter::controller::ConvertController,
     fusion::param::FusionParam,
-    utils::{combiner_bin, convert_worker_number},
+    utils::{combiner_bin, worker_number},
 };
 use std::{
     path::{Path, PathBuf},
@@ -28,7 +28,7 @@ impl FusionController {
         status: Arc<Mutex<Sender<()>>>,
         logger: Arc<Mutex<Sender<String>>>,
     ) -> anyhow::Result<()> {
-        let workers = convert_worker_number();
+        let workers = worker_number();
         let converter = ConvertController::new(workers, status, logger);
         let tasks = self.param.to_convert_task(&self.workspace)?;
         converter.execute(&tasks);
@@ -36,18 +36,33 @@ impl FusionController {
     }
 
     /// combine outputs
-    pub fn combine(&self) -> anyhow::Result<()> {
+    pub fn combine(
+        &self,
+        status: Arc<Mutex<Sender<()>>>,
+        logger: Arc<Mutex<Sender<String>>>,
+    ) -> anyhow::Result<()> {
         let combiner_bin = combiner_bin().expect("Error: invalid binary combiner executor");
-        let pdf_combiner = PDFCombiner::new(&combiner_bin);
-        let configs = self.param.to_combine_config(&self.workspace)?;
-        for (index, config) in configs.iter().enumerate() {
-            let filepath = &self
-                .workspace
-                .join(format!("combine_config_{}.json", index));
-            if let Ok(config_path) = config.write_config(filepath) {
-                pdf_combiner.run(&config_path);
-            }
-        }
+        let workers = worker_number();
+        let controller = PDFCombineController::new(workers, status, logger, &combiner_bin);
+        let configs = self
+            .param
+            .to_combine_config(&self.workspace)?
+            .into_iter()
+            .enumerate()
+            .map(|(id, config)| {
+                let name = config
+                    .destination
+                    .file_stem()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                let config = config
+                    .write_config(&self.workspace.join(format!("combine_config_{}.json", id)))
+                    .unwrap();
+                (name, config)
+            })
+            .collect::<Vec<(String, PathBuf)>>();
+        controller.combine(&configs);
         Ok(())
     }
 }

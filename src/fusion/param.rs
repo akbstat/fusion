@@ -65,7 +65,7 @@ impl FusionParam {
             let mut files = vec![];
             let mut config = CombineConfig::new();
             config.set_language(task.language.clone());
-            config.set_destination(&task.destination.clone());
+            config.set_destination(&task.destination.clone().join(format!("{}.pdf", task.name)));
             config.set_workspace(&workspace);
             if let Some(cover) = task.cover.clone() {
                 config.set_cover(&cover);
