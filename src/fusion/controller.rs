@@ -1,5 +1,5 @@
 use crate::{
-    combiner::pdf::controller::PDFCombineController,
+    combiner::{pdf::controller::PDFCombineController, rtf::controller::RTFCombineController},
     converter::controller::ConvertController,
     fusion::param::FusionParam,
     utils::{combiner_bin, worker_number},
@@ -42,11 +42,19 @@ impl FusionController {
         logger: Arc<Mutex<Sender<String>>>,
     ) -> anyhow::Result<()> {
         let combiner_bin = combiner_bin().expect("Error: invalid binary combiner executor");
+
         let workers = worker_number();
-        let controller = PDFCombineController::new(workers, status, logger, &combiner_bin);
-        let configs = self
-            .param
-            .to_combine_config(&self.workspace)?
+        let pdf_controller = PDFCombineController::new(
+            workers,
+            Arc::clone(&status),
+            Arc::clone(&logger),
+            &combiner_bin,
+        );
+        let rtf_controller =
+            RTFCombineController::new(workers, Arc::clone(&status), Arc::clone(&logger));
+
+        let (pdf_configs, rtf_configs) = self.param.to_combine_config(&self.workspace)?;
+        let pdf_configs = pdf_configs
             .into_iter()
             .enumerate()
             .map(|(id, config)| {
@@ -62,7 +70,18 @@ impl FusionController {
                 (name, config)
             })
             .collect::<Vec<(String, PathBuf)>>();
-        controller.combine(&configs);
+
+        let rtf_configs = rtf_configs
+            .into_iter()
+            .map(|config| {
+                (
+                    config.destination,
+                    config.files.into_iter().map(|file| file.path).collect(),
+                )
+            })
+            .collect::<Vec<(PathBuf, Vec<PathBuf>)>>();
+        pdf_controller.combine(&pdf_configs);
+        rtf_controller.combine(&rtf_configs);
         Ok(())
     }
 }

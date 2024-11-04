@@ -138,6 +138,51 @@ fn param() -> FusionParam {
                     size: 0,
                 },
             ],
+        }, FusionTask {
+            name: "all_listings".into(),
+            language: fusion::utils::Language::CN,
+            cover: None,
+            destination: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined")
+                .into(),
+            mode: fusion::utils::FusionMode::RTF,
+            files: vec![
+                File {
+                    filename: "l-16-02-07-04-teae-wt-ss.rtf".into(),
+                    title: "列表 16.2.7.4: 导致依沃西单抗/帕博利珠单抗永久停用的TEAE - 安全性分析集".into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-07-04-teae-wt-ss.rtf").into(),
+                    size: 0,
+                },
+                File {
+                    filename: "t-14-02-08-03-02-eq-index-fas.rtf".into(),
+                    title: "表 14.2.8.3.2: EuroQol EQ-5D-5L问卷结果总结2 - 效应指数值和健康状态评分 - EuroQol EQ-5D-5L分析集".into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-02-08-03-02-eq-index-fas.rtf").into(),
+                    size: 0,
+                },
+                File {
+                    filename: "t-14-03-03-01-05-irsae-ss.rtf".into(),
+                    title: "表 14.3.3.1.5: 严重的irAE按照irAE分组、PT和CTCAE分级总结 - 安全性分析集".into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-03-01-05-irsae-ss.rtf").into(),
+                    size: 0,
+                },
+                File {
+                    filename: "t-14-03-04-05-01-eg-intp-ss.rtf".into(),
+                    title: "表 14.3.4.5.1: ECG 整体评估 - 安全性分析集".into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-04-05-01-eg-intp-ss.rtf").into(),
+                    size: 0,
+                },
+                File {
+                    filename: "t-14-03-04-10-is-ada-sub-ims.rtf".into(),
+                    title: "表 14.3.4.10: ADA检测结果与疗效相关的亚组分析 - 免疫原性分析集".into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-04-10-is-ada-sub-ims.rtf").into(),
+                    size: 0,
+                },
+                File {
+                    filename: "l-16-02-08-01-04-lb-thyrabn-ss.rtf".into(),
+                    title: "Large size output 0".into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-08-01-04-lb-thyrabn-ss.rtf").into(),
+                    size: 0,
+                },
+            ],
         }],
     }
 }

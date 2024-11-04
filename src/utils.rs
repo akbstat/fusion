@@ -16,7 +16,7 @@ pub enum Language {
     EN,
 }
 
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Default, Clone, PartialEq, Eq)]
 pub enum FusionMode {
     #[default]
     PDF,

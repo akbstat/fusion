@@ -23,7 +23,7 @@ impl PDFCombineWorker {
             logger
                 .lock()
                 .unwrap()
-                .send(format!("[INFO] Combine worker {} launch\n", id))
+                .send(format!("[INFO] PDF combine worker {} launch\n", id))
                 .ok();
             loop {
                 let receiver = receiver.lock().unwrap().recv();
@@ -33,7 +33,7 @@ impl PDFCombineWorker {
                         logger
                             .lock()
                             .unwrap()
-                            .send(format!("[INFO] {} combine start\n", &name))
+                            .send(format!("[INFO] {} pdf combine start\n", &name))
                             .ok();
                         Command::new("cmd")
                             .arg("/C")
@@ -45,7 +45,7 @@ impl PDFCombineWorker {
                         logger
                             .lock()
                             .unwrap()
-                            .send(format!("[INFO] {} combine complete\n", &name))
+                            .send(format!("[INFO] {} pdf combine complete\n", &name))
                             .ok();
                     }
                     Err(_) => break,
@@ -55,7 +55,7 @@ impl PDFCombineWorker {
             logger
                 .lock()
                 .unwrap()
-                .send(format!("[INFO] Combine worker {} exit\n", id))
+                .send(format!("[INFO] PDF combine worker {} exit\n", id))
                 .ok();
         });
         PDFCombineWorker {

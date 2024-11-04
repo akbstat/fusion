@@ -33,18 +33,20 @@ impl FusionParam {
         let mut file_set = HashSet::<String>::new();
         let mut tasks = vec![];
         self.tasks.iter().for_each(|task| {
-            task.files.iter().for_each(|f| {
-                if !file_set.contains(&f.filename) {
-                    tasks.push(ConvertTask {
-                        source: f.path.clone(),
-                        destination: converted_pdf_dir(&workspace)
-                            .join(f.filename.replace(".rtf", ".pdf")),
-                        source_size: f.size,
-                        script: convert_script_dir(&workspace),
-                    });
-                    file_set.insert(f.filename.to_owned());
-                }
-            });
+            if task.mode.eq(&FusionMode::PDF) {
+                task.files.iter().for_each(|f| {
+                    if !file_set.contains(&f.filename) {
+                        tasks.push(ConvertTask {
+                            source: f.path.clone(),
+                            destination: converted_pdf_dir(&workspace)
+                                .join(f.filename.replace(".rtf", ".pdf")),
+                            source_size: f.size,
+                            script: convert_script_dir(&workspace),
+                        });
+                        file_set.insert(f.filename.to_owned());
+                    }
+                });
+            }
         });
         Ok(tasks)
     }
@@ -59,29 +61,17 @@ impl FusionParam {
         file_set.len()
     }
 
-    pub fn to_combine_config(&self, workspace: &Path) -> anyhow::Result<Vec<CombineConfig>> {
-        let mut configs = vec![];
-        self.tasks.iter().for_each(|task| {
-            let mut files = vec![];
-            let mut config = CombineConfig::new();
-            config.set_language(task.language.clone());
-            config.set_destination(&task.destination.clone().join(format!("{}.pdf", task.name)));
-            config.set_workspace(&workspace);
-            if let Some(cover) = task.cover.clone() {
-                config.set_cover(&cover);
-            }
-            task.files.iter().for_each(|f| {
-                files.push(File {
-                    filename: f.filename.to_owned(),
-                    title: f.title.to_owned(),
-                    path: converted_pdf_dir(&workspace).join(f.filename.replace(".rtf", ".pdf")),
-                    size: 0,
-                });
-            });
-            config.files = files;
-            configs.push(config);
+    pub fn to_combine_config(
+        &self,
+        workspace: &Path,
+    ) -> anyhow::Result<(Vec<CombineConfig>, Vec<CombineConfig>)> {
+        let mut pdf_configs = vec![];
+        let mut rtf_configs = vec![];
+        self.tasks.iter().for_each(|task| match task.mode {
+            FusionMode::PDF => pdf_configs.push(pdf_combine_task(task, workspace)),
+            FusionMode::RTF => rtf_configs.push(rtf_combine_task(task, workspace)),
         });
-        Ok(configs)
+        Ok((pdf_configs, rtf_configs))
     }
 
     pub fn combine_task_number(&self) -> usize {
@@ -105,6 +95,45 @@ fn convert_script_dir(workspace: &Path) -> PathBuf {
     dir
 }
 
+fn pdf_combine_task(task: &FusionTask, workspace: &Path) -> CombineConfig {
+    let mut files = vec![];
+    let mut config = CombineConfig::new();
+    config.set_language(task.language.clone());
+    config.set_destination(&task.destination.clone().join(format!("{}.pdf", task.name)));
+    config.set_workspace(&workspace);
+    if let Some(cover) = task.cover.clone() {
+        config.set_cover(&cover);
+    }
+    task.files.iter().for_each(|f| {
+        files.push(File {
+            filename: f.filename.to_owned(),
+            title: f.title.to_owned(),
+            path: converted_pdf_dir(&workspace).join(f.filename.replace(".rtf", ".pdf")),
+            size: 0,
+        });
+    });
+    config.files = files;
+    config
+}
+
+fn rtf_combine_task(task: &FusionTask, workspace: &Path) -> CombineConfig {
+    let mut files = vec![];
+    let mut config = CombineConfig::new();
+    config.set_language(task.language.clone());
+    config.set_destination(&task.destination.clone().join(format!("{}.rtf", task.name)));
+    config.set_workspace(&workspace);
+    task.files.iter().for_each(|f| {
+        files.push(File {
+            filename: f.filename.to_owned(),
+            title: f.title.to_owned(),
+            path: f.path.clone(),
+            size: 0,
+        });
+    });
+    config.files = files;
+    config
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,10 +149,13 @@ mod tests {
     fn to_combine_config() -> anyhow::Result<()> {
         let workspace = Path::new(r"D:\Users\yuqi01.chen\.temp\app\mobiuskit\fusion");
         let param = init();
-        let configs = param.to_combine_config(workspace)?;
-        assert_eq!(configs.len(), 2);
-        assert_eq!(configs[0].files.len(), 3);
-        assert_eq!(configs[1].files.len(), 2);
+        let (pdf_config, rtf_config) = param.to_combine_config(workspace)?;
+        assert_eq!(pdf_config.len(), 2);
+        assert_eq!(pdf_config[0].files.len(), 3);
+        assert_eq!(pdf_config[1].files.len(), 2);
+        assert_eq!(rtf_config.len(), 2);
+        assert_eq!(rtf_config[0].files.len(), 3);
+        assert_eq!(rtf_config[1].files.len(), 2);
         Ok(())
     }
     fn init() -> FusionParam {
