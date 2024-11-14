@@ -35,18 +35,30 @@ impl PDFCombineWorker {
                             .unwrap()
                             .send(format!("[INFO] {} pdf combine start\n", &name))
                             .ok();
-                        Command::new("cmd")
+                        let result = Command::new("cmd")
                             .arg("/C")
                             .arg(bin.clone())
                             .arg(config)
                             .output()
                             .unwrap();
-                        status.lock().unwrap().send(()).ok();
-                        logger
-                            .lock()
-                            .unwrap()
-                            .send(format!("[INFO] {} pdf combine complete\n", &name))
-                            .ok();
+                        if !result.status.success() {
+                            let error_message = String::from_utf8(result.stderr).unwrap();
+                            logger
+                                .lock()
+                                .unwrap()
+                                .send(format!(
+                                    "[ERROR] {} pdf combine failed, because: {}\n",
+                                    &name, error_message
+                                ))
+                                .ok();
+                        } else {
+                            status.lock().unwrap().send(()).ok();
+                            logger
+                                .lock()
+                                .unwrap()
+                                .send(format!("[INFO] {} pdf combine complete\n", &name))
+                                .ok();
+                        }
                     }
                     Err(_) => break,
                 }

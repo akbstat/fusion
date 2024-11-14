@@ -4,21 +4,24 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    combiner::config::CombineConfig,
-    converter::task::ConvertTask,
+use super::{
+    combine::CombineConfig,
+    convert::ConvertTask,
     utils::{File, FusionMode, Language},
 };
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FusionParam {
     pub id: Option<String>,
+    pub source: PathBuf,
+    pub destination: PathBuf,
+    pub top: PathBuf,
     pub tasks: Vec<FusionTask>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FusionTask {
     pub name: String,
     pub language: Language,
@@ -53,11 +56,14 @@ impl FusionParam {
 
     pub fn convert_task_numer(&self) -> usize {
         let mut file_set = HashSet::<String>::new();
-        self.tasks.iter().for_each(|task| {
-            task.files.iter().for_each(|f| {
-                file_set.insert(f.filename.clone());
+        self.tasks
+            .iter()
+            .filter(|task| task.mode.ne(&FusionMode::RTF))
+            .for_each(|task| {
+                task.files.iter().for_each(|f| {
+                    file_set.insert(f.filename.clone());
+                });
             });
-        });
         file_set.len()
     }
 
@@ -68,14 +74,37 @@ impl FusionParam {
         let mut pdf_configs = vec![];
         let mut rtf_configs = vec![];
         self.tasks.iter().for_each(|task| match task.mode {
-            FusionMode::PDF => pdf_configs.push(pdf_combine_task(task, workspace)),
-            FusionMode::RTF => rtf_configs.push(rtf_combine_task(task, workspace)),
+            FusionMode::PDF => {
+                pdf_configs.push(pdf_combine_task(pdf_configs.len(), task, workspace))
+            }
+            FusionMode::RTF => {
+                rtf_configs.push(rtf_combine_task(pdf_configs.len(), task, workspace))
+            }
         });
         Ok((pdf_configs, rtf_configs))
     }
 
     pub fn combine_task_number(&self) -> usize {
         self.tasks.len()
+    }
+
+    pub fn fix(&mut self) -> anyhow::Result<()> {
+        for (index, task) in self.tasks.clone().into_iter().enumerate() {
+            let mut files = Vec::with_capacity(task.files.len());
+            for file in task.files {
+                if file.path.exists() {
+                    let size = fs::metadata(&file.path)?.len();
+                    files.push(File {
+                        filename: file.filename.clone(),
+                        title: file.title.clone(),
+                        path: file.path.clone(),
+                        size: size.into(),
+                    });
+                }
+            }
+            (*self.tasks.get_mut(index).unwrap()).files = files;
+        }
+        Ok(())
     }
 }
 
@@ -95,9 +124,9 @@ fn convert_script_dir(workspace: &Path) -> PathBuf {
     dir
 }
 
-fn pdf_combine_task(task: &FusionTask, workspace: &Path) -> CombineConfig {
+fn pdf_combine_task(id: usize, task: &FusionTask, workspace: &Path) -> CombineConfig {
     let mut files = vec![];
-    let mut config = CombineConfig::new();
+    let mut config = CombineConfig::new(id);
     config.set_language(task.language.clone());
     config.set_destination(&task.destination.clone().join(format!("{}.pdf", task.name)));
     config.set_workspace(&workspace);
@@ -116,9 +145,9 @@ fn pdf_combine_task(task: &FusionTask, workspace: &Path) -> CombineConfig {
     config
 }
 
-fn rtf_combine_task(task: &FusionTask, workspace: &Path) -> CombineConfig {
+fn rtf_combine_task(id: usize, task: &FusionTask, workspace: &Path) -> CombineConfig {
     let mut files = vec![];
-    let mut config = CombineConfig::new();
+    let mut config = CombineConfig::new(id);
     config.set_language(task.language.clone());
     config.set_destination(&task.destination.clone().join(format!("{}.rtf", task.name)));
     config.set_workspace(&workspace);
@@ -136,6 +165,10 @@ fn rtf_combine_task(task: &FusionTask, workspace: &Path) -> CombineConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
+    use sha2::{Digest, Sha256};
+
     use super::*;
     #[test]
     fn test_to_convert_task() -> anyhow::Result<()> {
@@ -158,43 +191,61 @@ mod tests {
         assert_eq!(rtf_config[1].files.len(), 2);
         Ok(())
     }
+
+    #[test]
+    fn param_fix_test() -> anyhow::Result<()> {
+        let mut param = init();
+        assert_eq!(param.tasks.get(0).unwrap().files.len(), 3);
+        let task: &mut FusionTask = param.tasks.get_mut(0).unwrap();
+        (*task.files.get_mut(0).unwrap()).path = Path::new(
+            r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-04-04-mh-xxx.rtf",
+        )
+        .into();
+        param.fix()?;
+        assert_eq!(param.tasks.get(0).unwrap().files.len(), 2);
+        Ok(())
+    }
+
     fn init() -> FusionParam {
         FusionParam {
             id: None,
+            source: Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output").into(),
+            destination: Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\combined").into(),
+            top: Path::new(r"D:\Studies\ak112\303\stats\CSR\utility\top-ak112-303-CSR.xlsx").into(),
             tasks: vec![FusionTask {
                 name: "listing 1".into(),
-                language: crate::utils::Language::CN,
+                language: Language::CN,
                 cover: None,
                 destination: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined")
                     .into(),
-                mode: crate::utils::FusionMode::PDF,
+                mode: FusionMode::PDF,
                 files: vec![
                     File {
                         filename: "l-16-02-04-04-mh-fas.rtf".into(),
                         title: "列表 16.2.4.4: 既往病史 - 全分析集".into(),
-                        path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-04-04-mh-fas.rtf").into(),
+                        path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/l-16-02-04-04-mh-fas.rtf").into(),
                         size: 0,
                     },
                     File {
                         filename: "l-16-02-04-05-pre-ex-fas.rtf".into(),
                         title: "列表 16.2.4.5: 既往用药 - 全分析集".into(),
-                        path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-04-05-pre-ex-fas.rtf").into(),
+                        path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/l-16-02-04-05-pre-ex-fas.rtf").into(),
                         size: 0,
                     },
                     File {
                         filename: "l-16-02-05-01-ex-sum-ss.rtf".into(),
                         title: "列表 16.2.5.1: 研究药物暴露 - 安全性分析集".into(),
-                        path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-05-01-ex-sum-ss.rtf").into(),
+                        path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/l-16-02-05-01-ex-sum-ss.rtf").into(),
                         size: 0,
                     },
                 ],
             },FusionTask {
                 name: "listing 2".into(),
-                language: crate::utils::Language::CN,
+                language: Language::CN,
                 cover: None,
                 destination: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined")
                     .into(),
-                mode: crate::utils::FusionMode::PDF,
+                mode: FusionMode::PDF,
                 files: vec![
                     File {
                         filename: "l-16-02-08-01-04-lb-thyrabn-ss.rtf".into(),
@@ -211,5 +262,16 @@ mod tests {
                 ],
             }],
         }
+    }
+
+    #[test]
+    fn task_id_test() -> anyhow::Result<()> {
+        let data = r"D:/Studies/ak112/303/stats/CSR/product/output/combined";
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        let result = hasher.finalize();
+        let result = format!("{:x}", result);
+        println!("{}", result);
+        Ok(())
     }
 }

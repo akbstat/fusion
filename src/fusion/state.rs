@@ -4,8 +4,6 @@ use std::{
     thread,
 };
 
-use super::param::FusionParam;
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum FusionStage {
     Created,
@@ -25,13 +23,12 @@ pub struct ShareStates {
 
 impl ShareStates {
     pub fn new(
-        param: &FusionParam,
+        convert_tasks: usize,
+        combine_tasks: usize,
         convert_rx: mpsc::Receiver<()>,
         combine_rx: mpsc::Receiver<()>,
         combine_stage_notifier: Arc<Condvar>,
     ) -> Self {
-        let convert_tasks = param.convert_task_numer();
-        let combine_tasks = param.combine_task_number();
         let state = ShareStates {
             convert_complete_number: Arc::new(Mutex::new(0)),
             combine_complete_number: Arc::new(Mutex::new(0)),

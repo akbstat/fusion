@@ -1,36 +1,39 @@
 use crate::{
     combiner::{pdf::controller::PDFCombineController, rtf::controller::RTFCombineController},
+    config::{
+        convert::ConvertTask,
+        param::FusionParam,
+        utils::{combiner_bin, worker_number},
+    },
     converter::controller::ConvertController,
-    fusion::param::FusionParam,
-    utils::{combiner_bin, worker_number},
 };
 use std::{
-    path::{Path, PathBuf},
+    fs,
+    path::PathBuf,
     sync::{mpsc::Sender, Arc, Mutex},
 };
 
-pub struct FusionController {
-    param: FusionParam,
-    workspace: PathBuf,
-}
+pub struct FusionController;
 
 impl FusionController {
-    pub fn new(param: &FusionParam, workspace: &Path) -> anyhow::Result<Self> {
-        Ok(FusionController {
-            param: param.to_owned(),
-            workspace: workspace.into(),
-        })
+    pub fn new(param: &FusionParam) -> anyhow::Result<Self> {
+        // make sure destination exists
+        if !param.destination.exists() {
+            fs::create_dir_all(&param.destination)?;
+        }
+
+        Ok(FusionController)
     }
 
     /// convert rtf to pdf
     pub fn convert(
         &self,
+        tasks: &[ConvertTask],
         status: Arc<Mutex<Sender<()>>>,
         logger: Arc<Mutex<Sender<String>>>,
     ) -> anyhow::Result<()> {
         let workers = worker_number();
         let converter = ConvertController::new(workers, status, logger);
-        let tasks = self.param.to_convert_task(&self.workspace)?;
         converter.execute(&tasks);
         Ok(())
     }
@@ -38,6 +41,8 @@ impl FusionController {
     /// combine outputs
     pub fn combine(
         &self,
+        pdf_configs: &[(String, PathBuf)],
+        rtf_configs: &[(PathBuf, Vec<PathBuf>)],
         status: Arc<Mutex<Sender<()>>>,
         logger: Arc<Mutex<Sender<String>>>,
     ) -> anyhow::Result<()> {
@@ -52,36 +57,8 @@ impl FusionController {
         );
         let rtf_controller =
             RTFCombineController::new(workers, Arc::clone(&status), Arc::clone(&logger));
-
-        let (pdf_configs, rtf_configs) = self.param.to_combine_config(&self.workspace)?;
-        let pdf_configs = pdf_configs
-            .into_iter()
-            .enumerate()
-            .map(|(id, config)| {
-                let name = config
-                    .destination
-                    .file_stem()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string();
-                let config = config
-                    .write_config(&self.workspace.join(format!("combine_config_{}.json", id)))
-                    .unwrap();
-                (name, config)
-            })
-            .collect::<Vec<(String, PathBuf)>>();
-
-        let rtf_configs = rtf_configs
-            .into_iter()
-            .map(|config| {
-                (
-                    config.destination,
-                    config.files.into_iter().map(|file| file.path).collect(),
-                )
-            })
-            .collect::<Vec<(PathBuf, Vec<PathBuf>)>>();
-        pdf_controller.combine(&pdf_configs);
-        rtf_controller.combine(&rtf_configs);
+        pdf_controller.combine(pdf_configs);
+        rtf_controller.combine(rtf_configs);
         Ok(())
     }
 }

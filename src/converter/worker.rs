@@ -1,10 +1,11 @@
-use super::task::ConvertTask;
 use rtf2pdf::rtf2pdf;
 use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
     time::Duration,
 };
+
+use crate::config::convert::ConvertTask;
 
 pub struct Worker {
     haneler: Option<thread::JoinHandle<()>>,

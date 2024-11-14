@@ -1,19 +1,17 @@
 use std::{
     env,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{mpsc, Arc, Condvar, Mutex},
     thread,
     time::Duration,
 };
 
 use fusion::{
-    fusion::{
-        controller::FusionController,
-        logger::Logger,
+    config::{
         param::{FusionParam, FusionTask},
-        status::ShareStates,
+        utils::{workspace, File, FusionMode, Language},
     },
-    utils::{workspace, File},
+    fusion::{controller::FusionController, logger::Logger, source::Source, state::ShareStates},
 };
 
 #[test]
@@ -35,9 +33,18 @@ fn fusion_integration_test() -> anyhow::Result<()> {
     let (log_tx, log_rx) = mpsc::channel();
     let log_tx = Arc::new(Mutex::new(log_tx));
 
+    // filter converted output files
+    let source = Source::new(&workspace)?;
+    let convert_tasks = source.filter_convert_tasks(&param.to_convert_task(&workspace)?);
+    source.update_source(&param.source)?;
+    let (pdf_combine_config, rtf_combine_config) = param.to_combine_config(&workspace)?;
+    // let convert_tasks = 0;
+    // let combine_tasks = 0;
+
     // 1. prepare status machine
     let state_machine = ShareStates::new(
-        &param,
+        convert_tasks.len(),
+        pdf_combine_config.len() + rtf_combine_config.len(),
         convert_rx,
         combine_rx,
         Arc::clone(&combine_stage_notifier),
@@ -47,21 +54,46 @@ fn fusion_integration_test() -> anyhow::Result<()> {
     let logger = Logger::new(log_rx, &log_path)?;
 
     // 3. init controller
-    let controller = FusionController::new(&param, &workspace)?;
+    let controller = FusionController::new(&param)?;
 
     // 4. launch task
     let phase1 = Arc::clone(&convert_complete);
     let handler_0 = thread::spawn(move || {
         let mut phase = phase1.lock().unwrap();
         controller
-            .convert(Arc::clone(&convert_tx), Arc::clone(&log_tx))
+            .convert(&convert_tasks, Arc::clone(&convert_tx), Arc::clone(&log_tx))
             .ok();
         while *phase {
             phase = combine_stage_notifier.wait(phase).unwrap();
         }
         println!("[RUNNER] Combine start");
         controller
-            .combine(Arc::clone(&combine_tx), Arc::clone(&log_tx))
+            .combine(
+                &pdf_combine_config
+                    .into_iter()
+                    .map(|config| {
+                        let name = config
+                            .destination
+                            .file_stem()
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string();
+                        let config = config.write_config(&config.workspace()).unwrap();
+                        (name, config)
+                    })
+                    .collect::<Vec<(String, PathBuf)>>(),
+                &rtf_combine_config
+                    .into_iter()
+                    .map(|config| {
+                        (
+                            config.destination,
+                            config.files.into_iter().map(|file| file.path).collect(),
+                        )
+                    })
+                    .collect::<Vec<(PathBuf, Vec<PathBuf>)>>(),
+                Arc::clone(&combine_tx),
+                Arc::clone(&log_tx),
+            )
             .ok();
     });
     let handler_1 = thread::spawn(move || loop {
@@ -93,93 +125,96 @@ fn fusion_integration_test() -> anyhow::Result<()> {
 fn param() -> FusionParam {
     FusionParam {
         id: None,
+        source: Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output").into(),
+        destination: Path::new(r"D:\Studies\ak112\303\stats\CSR\product\output\combined").into(),
+        top: Path::new(r"D:\Studies\ak112\303\stats\CSR\utility\top-ak112-303-CSR.xlsx").into(),
         tasks: vec![FusionTask {
             name: "all_listings".into(),
-            language: fusion::utils::Language::CN,
+            language: Language::CN,
             cover: None,
             destination: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined")
                 .into(),
-            mode: fusion::utils::FusionMode::PDF,
+            mode: FusionMode::PDF,
             files: vec![
                 File {
                     filename: "l-16-02-07-04-teae-wt-ss.rtf".into(),
                     title: "列表 16.2.7.4: 导致依沃西单抗/帕博利珠单抗永久停用的TEAE - 安全性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-07-04-teae-wt-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/l-16-02-07-04-teae-wt-ss.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-02-08-03-02-eq-index-fas.rtf".into(),
                     title: "表 14.2.8.3.2: EuroQol EQ-5D-5L问卷结果总结2 - 效应指数值和健康状态评分 - EuroQol EQ-5D-5L分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-02-08-03-02-eq-index-fas.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-02-08-03-02-eq-index-fas.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-03-03-01-05-irsae-ss.rtf".into(),
                     title: "表 14.3.3.1.5: 严重的irAE按照irAE分组、PT和CTCAE分级总结 - 安全性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-03-01-05-irsae-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-03-03-01-05-irsae-ss.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-03-04-05-01-eg-intp-ss.rtf".into(),
                     title: "表 14.3.4.5.1: ECG 整体评估 - 安全性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-04-05-01-eg-intp-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-03-04-05-01-eg-intp-ss.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-03-04-10-is-ada-sub-ims.rtf".into(),
                     title: "表 14.3.4.10: ADA检测结果与疗效相关的亚组分析 - 免疫原性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-04-10-is-ada-sub-ims.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-03-04-10-is-ada-sub-ims.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "l-16-02-08-01-04-lb-thyrabn-ss.rtf".into(),
                     title: "Large size output 0".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-08-01-04-lb-thyrabn-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/l-16-02-08-01-04-lb-thyrabn-ss.rtf").into(),
                     size: 0,
                 },
             ],
         }, FusionTask {
             name: "all_listings".into(),
-            language: fusion::utils::Language::CN,
+            language: Language::CN,
             cover: None,
             destination: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined")
                 .into(),
-            mode: fusion::utils::FusionMode::RTF,
+            mode: FusionMode::RTF,
             files: vec![
                 File {
                     filename: "l-16-02-07-04-teae-wt-ss.rtf".into(),
                     title: "列表 16.2.7.4: 导致依沃西单抗/帕博利珠单抗永久停用的TEAE - 安全性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-07-04-teae-wt-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/l-16-02-07-04-teae-wt-ss.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-02-08-03-02-eq-index-fas.rtf".into(),
                     title: "表 14.2.8.3.2: EuroQol EQ-5D-5L问卷结果总结2 - 效应指数值和健康状态评分 - EuroQol EQ-5D-5L分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-02-08-03-02-eq-index-fas.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-02-08-03-02-eq-index-fas.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-03-03-01-05-irsae-ss.rtf".into(),
                     title: "表 14.3.3.1.5: 严重的irAE按照irAE分组、PT和CTCAE分级总结 - 安全性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-03-01-05-irsae-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-03-03-01-05-irsae-ss.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-03-04-05-01-eg-intp-ss.rtf".into(),
                     title: "表 14.3.4.5.1: ECG 整体评估 - 安全性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-04-05-01-eg-intp-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-03-04-05-01-eg-intp-ss.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "t-14-03-04-10-is-ada-sub-ims.rtf".into(),
                     title: "表 14.3.4.10: ADA检测结果与疗效相关的亚组分析 - 免疫原性分析集".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/t-14-03-04-10-is-ada-sub-ims.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/t-14-03-04-10-is-ada-sub-ims.rtf").into(),
                     size: 0,
                 },
                 File {
                     filename: "l-16-02-08-01-04-lb-thyrabn-ss.rtf".into(),
                     title: "Large size output 0".into(),
-                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/l-16-02-08-01-04-lb-thyrabn-ss.rtf").into(),
+                    path: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/l-16-02-08-01-04-lb-thyrabn-ss.rtf").into(),
                     size: 0,
                 },
             ],

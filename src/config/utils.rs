@@ -1,4 +1,3 @@
-use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use std::{
     env, fs,
@@ -16,7 +15,7 @@ pub enum Language {
     EN,
 }
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, Eq)]
 pub enum FusionMode {
     #[default]
     PDF,
@@ -50,15 +49,22 @@ pub fn combiner_bin() -> Option<PathBuf> {
 }
 
 pub fn workspace(id: Option<String>) -> anyhow::Result<PathBuf> {
-    let root = fusion_app_root()?;
+    let mut is_temp = false;
+    let root = fusion_app_root()?.join("workspace");
     if !root.exists() {
         fs::create_dir_all(&root)?;
     }
     let id = match id {
         Some(id) => id,
-        None => nanoid!(10),
+        None => {
+            is_temp = true;
+            "__temp__".into()
+        }
     };
     let workspace = root.join(&id);
+    if is_temp {
+        fs::remove_dir_all(&workspace)?;
+    }
     if !workspace.exists() {
         fs::create_dir_all(&workspace)?;
     }

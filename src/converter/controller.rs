@@ -1,6 +1,8 @@
 use std::sync::{mpsc, Arc, Mutex};
 
-use super::{task::ConvertTask, worker::Worker};
+use crate::config::convert::ConvertTask;
+
+use super::worker::Worker;
 
 pub struct ConvertController {
     sender: Option<mpsc::Sender<ConvertTask>>,

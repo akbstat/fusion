@@ -1,6 +1,5 @@
 pub mod combiner;
+pub mod config;
 pub mod converter;
 pub mod fusion;
-mod logger;
 pub mod top;
-pub mod utils;
