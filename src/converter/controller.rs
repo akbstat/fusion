@@ -14,6 +14,7 @@ impl ConvertController {
         worker_number: usize,
         status: Arc<Mutex<mpsc::Sender<()>>>,
         logger: Arc<Mutex<mpsc::Sender<String>>>,
+        cancel: Arc<Mutex<mpsc::Receiver<()>>>,
     ) -> Self {
         let (tx, rx) = mpsc::channel();
         let rx = Arc::new(Mutex::new(rx));
@@ -24,6 +25,7 @@ impl ConvertController {
                 Arc::clone(&logger),
                 Arc::clone(&rx),
                 Arc::clone(&status),
+                Arc::clone(&cancel),
             ));
         }
         ConvertController {

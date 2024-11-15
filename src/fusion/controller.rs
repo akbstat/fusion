@@ -10,10 +10,17 @@ use crate::{
 use std::{
     fs,
     path::PathBuf,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{
+        mpsc::{self, Sender},
+        Arc, Mutex,
+    },
+    thread,
 };
 
-pub struct FusionController;
+pub struct FusionController {
+    cancel_tx: Option<mpsc::Sender<()>>,
+    cancel_rx: Arc<Mutex<mpsc::Receiver<()>>>,
+}
 
 impl FusionController {
     pub fn new(param: &FusionParam) -> anyhow::Result<Self> {
@@ -21,8 +28,12 @@ impl FusionController {
         if !param.destination.exists() {
             fs::create_dir_all(&param.destination)?;
         }
-
-        Ok(FusionController)
+        let (tx, rx) = mpsc::channel();
+        let rx = Arc::new(Mutex::new(rx));
+        Ok(FusionController {
+            cancel_tx: Some(tx),
+            cancel_rx: rx,
+        })
     }
 
     /// convert rtf to pdf
@@ -33,8 +44,12 @@ impl FusionController {
         logger: Arc<Mutex<Sender<String>>>,
     ) -> anyhow::Result<()> {
         let workers = worker_number();
-        let converter = ConvertController::new(workers, status, logger);
-        converter.execute(&tasks);
+        let converter =
+            ConvertController::new(workers, status, logger, Arc::clone(&self.cancel_rx));
+        let tasks = tasks.to_owned();
+        thread::spawn(move || {
+            converter.execute(&tasks);
+        });
         Ok(())
     }
 
@@ -60,5 +75,11 @@ impl FusionController {
         pdf_controller.combine(pdf_configs);
         rtf_controller.combine(rtf_configs);
         Ok(())
+    }
+}
+
+impl Drop for FusionController {
+    fn drop(&mut self) {
+        drop(self.cancel_tx.take());
     }
 }

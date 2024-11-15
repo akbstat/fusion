@@ -47,17 +47,19 @@ impl ShareStates {
         let convert_complete_number = Arc::clone(&self.convert_complete_number);
         let combine_complete_number = Arc::clone(&self.combine_complete_number);
         let convert_tasks = self.convert_tasks;
-        thread::spawn(move || loop {
-            match convert_rx.lock().unwrap().recv() {
-                Ok(_) => {
-                    *convert_complete_number.lock().unwrap() += 1;
-                    if (*convert_complete_number.lock().unwrap()).eq(&convert_tasks) {
-                        combine_stage_notifier.notify_one();
+        if convert_tasks.gt(&0) {
+            thread::spawn(move || loop {
+                match convert_rx.lock().unwrap().recv() {
+                    Ok(_) => {
+                        *convert_complete_number.lock().unwrap() += 1;
+                        if (*convert_complete_number.lock().unwrap()).eq(&convert_tasks) {
+                            combine_stage_notifier.notify_one();
+                        }
                     }
-                }
-                Err(_) => return,
-            };
-        });
+                    Err(_) => return,
+                };
+            });
+        }
         thread::spawn(move || loop {
             match combine_rx.lock().unwrap().recv() {
                 Ok(_) => *combine_complete_number.lock().unwrap() += 1,

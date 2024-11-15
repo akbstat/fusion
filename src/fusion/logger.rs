@@ -1,12 +1,13 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::{read_to_string, File, OpenOptions},
     io::{Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex},
     thread,
 };
 
 pub struct Logger {
+    log_path: PathBuf,
     reader: Mutex<File>,
     handler: Option<thread::JoinHandle<()>>,
 }
@@ -30,6 +31,7 @@ impl Logger {
         Ok(Logger {
             reader: Mutex::new(reader),
             handler: Some(handler),
+            log_path: log_path.into(),
         })
     }
     pub fn read(&self) -> anyhow::Result<String> {
@@ -38,6 +40,10 @@ impl Logger {
             reader.read_to_string(&mut message)?;
         }
         Ok(message)
+    }
+    pub fn read_all(&self) -> anyhow::Result<String> {
+        let contents = read_to_string(&self.log_path)?;
+        Ok(contents)
     }
 }
 

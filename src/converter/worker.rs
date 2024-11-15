@@ -17,14 +17,27 @@ impl Worker {
         logger: Arc<Mutex<mpsc::Sender<String>>>,
         receiver: Arc<Mutex<mpsc::Receiver<ConvertTask>>>,
         status: Arc<Mutex<mpsc::Sender<()>>>,
+        cancel: Arc<Mutex<mpsc::Receiver<()>>>,
     ) -> Self {
         let handler = thread::spawn(move || {
+            let is_cancel = Arc::new(Mutex::new(false));
+            let is_cancel_clone = Arc::clone(&is_cancel);
+            thread::spawn(move || loop {
+                if let Err(_) = cancel.lock().unwrap().recv() {
+                    *is_cancel_clone.lock().unwrap() = true;
+                    return;
+                }
+            });
             logger
                 .lock()
                 .unwrap()
                 .send(format!("[INFO] Convert worker {} launch\n", id))
                 .ok();
             loop {
+                if *is_cancel.lock().unwrap() {
+                    break;
+                }
+
                 let task = receiver.lock().unwrap().recv();
                 match task {
                     Ok(task) => {
@@ -37,7 +50,6 @@ impl Worker {
                             .unwrap()
                             .send(format!("[INFO] {} convert start\n", &task_name))
                             .ok();
-
                         rtf2pdf(vec![(source, destination)], &task.script).ok();
                         status.lock().unwrap().send(()).unwrap();
                         logger
