@@ -1,6 +1,7 @@
+use super::{combiner::combine, outline::add_outline};
+use crate::config::combine::CombinePDFParam;
 use std::{
-    path::{Path, PathBuf},
-    process::Command,
+    path::Path,
     sync::{mpsc, Arc, Mutex},
     thread,
     time::Duration,
@@ -14,7 +15,7 @@ impl PDFCombineWorker {
     pub fn new(
         id: usize,
         bin: &Path,
-        receiver: Arc<Mutex<mpsc::Receiver<(String, PathBuf)>>>,
+        receiver: Arc<Mutex<mpsc::Receiver<CombinePDFParam>>>,
         status: Arc<Mutex<mpsc::Sender<()>>>,
         logger: Arc<Mutex<mpsc::Sender<String>>>,
     ) -> Self {
@@ -28,37 +29,64 @@ impl PDFCombineWorker {
             loop {
                 let receiver = receiver.lock().unwrap().recv();
                 match receiver {
-                    Ok(config) => {
-                        let (name, config) = config;
+                    Ok(mut param) => {
+                        let filename = param.destination.clone();
+                        let filename = filename.file_stem().unwrap().to_string_lossy();
                         logger
                             .lock()
                             .unwrap()
-                            .send(format!("[INFO] {} pdf combine start\n", &name))
+                            .send(format!("[INFO] {:?} pdf combine start\n", filename))
                             .ok();
-                        let result = Command::new("cmd")
-                            .arg("/C")
-                            .arg(bin.clone())
-                            .arg(config)
-                            .output()
-                            .unwrap();
-                        if !result.status.success() {
-                            let error_message = String::from_utf8(result.stderr).unwrap();
-                            logger
-                                .lock()
-                                .unwrap()
-                                .send(format!(
-                                    "[ERROR] {} pdf combine failed, because: {}\n",
-                                    &name, error_message
-                                ))
-                                .ok();
-                        } else {
-                            status.lock().unwrap().send(()).ok();
-                            logger
-                                .lock()
-                                .unwrap()
-                                .send(format!("[INFO] {} pdf combine complete\n", &name))
-                                .ok();
-                        }
+                        // combine pdfs(with toc)
+                        match combine(&mut param) {
+                            Ok(_) => {
+                                logger
+                                    .lock()
+                                    .unwrap()
+                                    .send(format!("[INFO] {} pdf combine successfully\n", filename))
+                                    .ok();
+                                logger
+                                    .lock()
+                                    .unwrap()
+                                    .send(format!("[INFO] {:?} add outline start\n", filename))
+                                    .ok();
+                                // combine pdf succesfully, then start to build outlines
+                                match add_outline(&param.workspace, &param.to_outline_param(), &bin)
+                                {
+                                    Ok(_) => {
+                                        status.lock().unwrap().send(()).ok();
+                                        logger
+                                            .lock()
+                                            .unwrap()
+                                            .send(format!(
+                                                "[INFO] {} pdf combine complete\n",
+                                                filename
+                                            ))
+                                            .ok();
+                                    }
+                                    Err(err) => {
+                                        logger
+                                            .lock()
+                                            .unwrap()
+                                            .send(format!(
+                                                "[ERROR] {} add outline failed, because: {}\n",
+                                                filename, err
+                                            ))
+                                            .ok();
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                logger
+                                    .lock()
+                                    .unwrap()
+                                    .send(format!(
+                                        "[ERROR] {} pdf combine failed, because: {}\n",
+                                        filename, err
+                                    ))
+                                    .ok();
+                            }
+                        };
                     }
                     Err(_) => break,
                 }

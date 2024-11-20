@@ -1,13 +1,15 @@
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     sync::{mpsc, Arc, Mutex},
 };
+
+use crate::config::combine::CombinePDFParam;
 
 use super::worker::PDFCombineWorker;
 
 pub struct PDFCombineController {
     workers: Vec<PDFCombineWorker>,
-    sender: Option<mpsc::Sender<(String, PathBuf)>>,
+    sender: Option<mpsc::Sender<CombinePDFParam>>,
 }
 
 impl PDFCombineController {
@@ -32,7 +34,7 @@ impl PDFCombineController {
         }
     }
 
-    pub fn combine(&self, configs: &[(String, PathBuf)]) {
+    pub fn combine(&self, configs: &[CombinePDFParam]) {
         for config in configs {
             if let Some(sender) = self.sender.as_ref() {
                 sender.send(config.clone()).ok();

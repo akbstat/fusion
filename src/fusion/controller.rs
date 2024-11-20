@@ -1,6 +1,7 @@
 use crate::{
     combiner::{pdf::controller::PDFCombineController, rtf::controller::RTFCombineController},
     config::{
+        combine::{CombinePDFParam, RTFCombineParam},
         convert::ConvertTask,
         param::FusionParam,
         utils::{combiner_bin, worker_number},
@@ -9,7 +10,6 @@ use crate::{
 };
 use std::{
     fs,
-    path::PathBuf,
     sync::{
         mpsc::{self, Sender},
         Arc, Mutex,
@@ -56,8 +56,8 @@ impl FusionController {
     /// combine outputs
     pub fn combine(
         &self,
-        pdf_configs: &[(String, PathBuf)],
-        rtf_configs: &[(PathBuf, Vec<PathBuf>)],
+        pdf_configs: &[CombinePDFParam],
+        rtf_configs: &[RTFCombineParam],
         status: Arc<Mutex<Sender<()>>>,
         logger: Arc<Mutex<Sender<String>>>,
     ) -> anyhow::Result<()> {

@@ -1,5 +1,5 @@
+use crate::{combiner::rtf::combiner, config::combine::RTFCombineParam};
 use std::{
-    path::PathBuf,
     sync::{mpsc, Arc, Mutex},
     thread,
 };
@@ -11,7 +11,7 @@ pub struct RTFCombineWokrer {
 impl RTFCombineWokrer {
     pub fn new(
         id: usize,
-        receiver: Arc<Mutex<mpsc::Receiver<(PathBuf, Vec<PathBuf>)>>>,
+        receiver: Arc<Mutex<mpsc::Receiver<RTFCombineParam>>>,
         status: Arc<Mutex<mpsc::Sender<()>>>,
         logger: Arc<Mutex<mpsc::Sender<String>>>,
     ) -> Self {
@@ -24,14 +24,14 @@ impl RTFCombineWokrer {
             loop {
                 let task = receiver.lock().unwrap().recv();
                 match task {
-                    Ok((destination, sources)) => {
-                        let name = destination.file_stem().unwrap().to_string_lossy();
+                    Ok(param) => {
+                        let name = param.destination.file_stem().unwrap().to_string_lossy();
                         logger
                             .lock()
                             .unwrap()
                             .send(format!("[INFO] {} rtf combine start\n", name))
                             .ok();
-                        rtf_operator::combiner::combine(&sources, &destination).unwrap();
+                        combiner::combine(&param).unwrap();
                         status.lock().unwrap().send(()).ok();
                         logger
                             .lock()

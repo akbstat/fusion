@@ -1,6 +1,6 @@
 use std::{
     env,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{mpsc, Arc, Condvar, Mutex},
     thread,
     time::Duration,
@@ -37,7 +37,7 @@ fn fusion_integration_test() -> anyhow::Result<()> {
     let source = Source::new(&workspace)?;
     let convert_tasks = source.filter_convert_tasks(&param.to_convert_task(&workspace)?);
     source.update_source(&param.source)?;
-    let (pdf_combine_config, rtf_combine_config) = param.to_combine_config(&workspace)?;
+    let (pdf_combine_config, rtf_combine_config) = param.to_combine_param(&workspace)?;
     // let convert_tasks = 0;
     // let combine_tasks = 0;
 
@@ -63,34 +63,15 @@ fn fusion_integration_test() -> anyhow::Result<()> {
         controller
             .convert(&convert_tasks, Arc::clone(&convert_tx), Arc::clone(&log_tx))
             .ok();
-        while *phase {
+        while !*phase {
             phase = combine_stage_notifier.wait(phase).unwrap();
+            *phase = true;
         }
         println!("[RUNNER] Combine start");
         controller
             .combine(
-                &pdf_combine_config
-                    .into_iter()
-                    .map(|config| {
-                        let name = config
-                            .destination
-                            .file_stem()
-                            .unwrap()
-                            .to_string_lossy()
-                            .to_string();
-                        let config = config.write_config(&config.workspace()).unwrap();
-                        (name, config)
-                    })
-                    .collect::<Vec<(String, PathBuf)>>(),
-                &rtf_combine_config
-                    .into_iter()
-                    .map(|config| {
-                        (
-                            config.destination,
-                            config.files.into_iter().map(|file| file.path).collect(),
-                        )
-                    })
-                    .collect::<Vec<(PathBuf, Vec<PathBuf>)>>(),
+                &pdf_combine_config,
+                &rtf_combine_config,
                 Arc::clone(&combine_tx),
                 Arc::clone(&log_tx),
             )
@@ -130,8 +111,8 @@ fn param() -> FusionParam {
         top: Path::new(r"D:\Studies\ak112\303\stats\CSR\utility\top-ak112-303-CSR.xlsx").into(),
         tasks: vec![FusionTask {
             name: "all_listings".into(),
-            language: Language::CN,
-            cover: None,
+            language: Language::EN,
+            cover: Some(Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined/cover.pdf").into()),
             destination: Path::new(r"D:/Studies/ak112/303/stats/CSR/product/output/combined")
                 .into(),
             mode: FusionMode::PDF,
@@ -227,7 +208,7 @@ fn env_prepare() -> anyhow::Result<()> {
     const COMBINER_BIN: &str = "MK_COMBINER_BIN";
     const APP_ROOT: &str = "MK_FUSION";
     env::set_var(WORKER_NUMBER_ENV, 5.to_string());
-    env::set_var(COMBINER_BIN, r"D:\projects\py\combiner\dist\combiner.exe");
+    env::set_var(COMBINER_BIN, r"D:\projects\py\outlines\dist\outline.exe");
     env::set_var(APP_ROOT, r"D:\Users\yuqi01.chen\.temp\app\mobiuskit\fusion");
     Ok(())
 }

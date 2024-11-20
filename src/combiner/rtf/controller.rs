@@ -1,12 +1,11 @@
-use std::{
-    path::PathBuf,
-    sync::{mpsc, Arc, Mutex},
-};
+use std::sync::{mpsc, Arc, Mutex};
+
+use crate::config::combine::RTFCombineParam;
 
 use super::worker::RTFCombineWokrer;
 
 pub struct RTFCombineController {
-    sender: Option<mpsc::Sender<(PathBuf, Vec<PathBuf>)>>,
+    sender: Option<mpsc::Sender<RTFCombineParam>>,
     workers: Vec<RTFCombineWokrer>,
 }
 
@@ -33,10 +32,10 @@ impl RTFCombineController {
         }
     }
 
-    pub fn combine(&self, configs: &[(PathBuf, Vec<PathBuf>)]) {
-        for config in configs {
+    pub fn combine(&self, params: &[RTFCombineParam]) {
+        for param in params {
             if let Some(sender) = self.sender.as_ref() {
-                sender.send(config.clone()).ok();
+                sender.send(param.clone()).ok();
             }
         }
     }
