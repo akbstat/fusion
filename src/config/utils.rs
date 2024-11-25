@@ -5,7 +5,7 @@ use std::{
 };
 
 const WORKER_NUMBER_ENV: &str = "MK_WORD_WORKER";
-const COMBINER_BIN: &str = "MK_COMBINER_BIN";
+const COMBINE_BIN: &str = "MK_COMBINE_BIN";
 const APP_ROOT: &str = "MK_FUSION";
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
@@ -42,7 +42,7 @@ pub fn worker_number() -> usize {
 }
 
 pub fn combiner_bin() -> Option<PathBuf> {
-    match env::var(COMBINER_BIN) {
+    match env::var(COMBINE_BIN) {
         Ok(bin) => Some(Path::new(&bin).into()),
         Err(_) => None,
     }
@@ -62,7 +62,7 @@ pub fn workspace(id: Option<String>) -> anyhow::Result<PathBuf> {
         }
     };
     let workspace = root.join(&id);
-    if is_temp {
+    if is_temp && workspace.exists() {
         fs::remove_dir_all(&workspace)?;
     }
     if !workspace.exists() {

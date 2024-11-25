@@ -1,5 +1,5 @@
 use super::template;
-use crate::config::combine::PDFFile;
+use crate::combiner::pdf::location::Location;
 use anyhow::Ok;
 use headless_chrome::{types::PrintToPdfOptions, Browser};
 use serde::Serialize;
@@ -10,12 +10,10 @@ const TOC_TEMPLATE: &str = "toc";
 
 #[derive(Debug, Serialize)]
 struct RenderData {
-    pub items: Vec<PDFFile>,
+    pub items: Vec<Location>,
     pub content: String,
-    pub company: String,
-    pub study: String,
-    pub purpose: String,
     pub size: ValidSize,
+    pub toc_headers: (String, String, String, String),
 }
 
 #[derive(Debug, Default, Clone, Serialize)]
@@ -32,6 +30,7 @@ pub struct Render {
     company: String,
     study: String,
     purpose: String,
+    toc_headers: (String, String, String, String),
     pub size: ValidSize,
 }
 
@@ -74,14 +73,17 @@ impl Render {
         self
     }
 
-    pub fn print(&self, items: &[PDFFile], dest: &Path) -> anyhow::Result<()> {
+    pub fn set_toc_headers(&mut self, toc_headers: &(String, String, String, String)) -> &mut Self {
+        self.toc_headers = toc_headers.clone();
+        self
+    }
+
+    pub fn print(&self, items: &[Location], dest: &Path) -> anyhow::Result<()> {
         let data = RenderData {
             content: self.content.clone(),
-            company: self.company.clone(),
-            study: self.study.clone(),
-            purpose: self.purpose.clone(),
             items: items.to_vec(),
             size: self.size.clone(),
+            toc_headers: self.toc_headers.clone(),
         };
         let bytes = self
             .template

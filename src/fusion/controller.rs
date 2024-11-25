@@ -44,8 +44,17 @@ impl FusionController {
         logger: Arc<Mutex<Sender<String>>>,
     ) -> anyhow::Result<()> {
         let workers = worker_number();
-        let converter =
-            ConvertController::new(workers, status, logger, Arc::clone(&self.cancel_rx));
+        let task_number = tasks.len();
+        let converter = ConvertController::new(
+            if task_number.gt(&workers) {
+                workers
+            } else {
+                task_number
+            },
+            status,
+            logger,
+            Arc::clone(&self.cancel_rx),
+        );
         let tasks = tasks.to_owned();
         thread::spawn(move || {
             converter.execute(&tasks);
@@ -63,17 +72,35 @@ impl FusionController {
     ) -> anyhow::Result<()> {
         let combiner_bin = combiner_bin().expect("Error: invalid binary combiner executor");
 
-        let workers = worker_number();
-        let pdf_controller = PDFCombineController::new(
-            workers,
-            Arc::clone(&status),
-            Arc::clone(&logger),
-            &combiner_bin,
-        );
-        let rtf_controller =
-            RTFCombineController::new(workers, Arc::clone(&status), Arc::clone(&logger));
-        pdf_controller.combine(pdf_configs);
-        rtf_controller.combine(rtf_configs);
+        let max_workers = worker_number();
+        let pdf_tasks = pdf_configs.len();
+        let rtf_tasks = rtf_configs.len();
+        if pdf_tasks.gt(&0) {
+            let pdf_controller = PDFCombineController::new(
+                if pdf_tasks.gt(&max_workers) {
+                    max_workers
+                } else {
+                    pdf_tasks
+                },
+                Arc::clone(&status),
+                Arc::clone(&logger),
+                &combiner_bin,
+            );
+            pdf_controller.combine(pdf_configs);
+        }
+
+        if rtf_tasks.gt(&0) {
+            let rtf_controller = RTFCombineController::new(
+                if rtf_tasks.gt(&max_workers) {
+                    max_workers
+                } else {
+                    rtf_tasks
+                },
+                Arc::clone(&status),
+                Arc::clone(&logger),
+            );
+            rtf_controller.combine(rtf_configs);
+        }
         Ok(())
     }
 }

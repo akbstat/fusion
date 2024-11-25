@@ -69,20 +69,36 @@ impl ShareStates {
     }
 
     pub fn progress(&self) -> (f64, FusionStage) {
-        let convert_complete = *self.convert_complete_number.lock().unwrap();
-        let combine_complete = *self.combine_complete_number.lock().unwrap();
-        let complete_task = convert_complete.add(combine_complete) as f64;
+        let convert_tasks = self.convert_tasks as f64;
+        let combine_tasks = self.combine_tasks as f64;
+        let convert_complete = *self.convert_complete_number.lock().unwrap() as f64;
+        let combine_complete = *self.combine_complete_number.lock().unwrap() as f64;
+        // let complete_task = convert_complete.add(combine_complete) as f64;
         let all_task = self.convert_tasks.add(self.combine_tasks) as f64;
         if all_task.eq(&0f64) {
             return (100f64, FusionStage::Completed);
         }
-        let progress = complete_task.div(all_task);
-        let stage = if convert_complete.eq(&0) && combine_complete.eq(&0) {
+
+        // in convert stage
+        let progress = if self.convert_tasks.eq(&0) {
+            // nothing need to convert
+            0.75 + combine_complete.div(combine_tasks) * 0.25
+        } else {
+            // convert
+            if convert_complete.eq(&convert_tasks) {
+                0.75 + combine_complete.div(combine_tasks) * 0.25
+            } else {
+                convert_complete / convert_tasks * 0.75
+            }
+        };
+
+        // let progress = complete_task.div(all_task);
+        let stage = if convert_complete.eq(&0f64) && combine_complete.eq(&0f64) {
             FusionStage::Created
-        } else if convert_complete.lt(&self.convert_tasks) && combine_complete.eq(&0) {
+        } else if convert_complete.lt(&convert_tasks) && combine_complete.eq(&0f64) {
             FusionStage::Converting
-        } else if convert_complete.eq(&self.convert_tasks)
-            && combine_complete.lt(&self.combine_tasks)
+        } else if convert_complete.eq(&convert_tasks)
+            && combine_complete.lt(&combine_tasks)
             && progress.lt(&100f64)
         {
             FusionStage::Combining

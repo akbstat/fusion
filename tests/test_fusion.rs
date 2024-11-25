@@ -154,6 +154,7 @@ fn param() -> FusionParam {
                     size: 0,
                 },
             ],
+            toc_headers: ("".into(), "".into(), "".into(), "".into()),
         }, FusionTask {
             name: "all_listings".into(),
             language: Language::CN,
@@ -199,16 +200,17 @@ fn param() -> FusionParam {
                     size: 0,
                 },
             ],
+            toc_headers: ("".into(), "".into(), "".into(), "".into()),
         }],
     }
 }
 
 fn env_prepare() -> anyhow::Result<()> {
     const WORKER_NUMBER_ENV: &str = "MK_WORD_WORKER";
-    const COMBINER_BIN: &str = "MK_COMBINER_BIN";
+    const OUTLINE_BIN: &str = "MK_OUTLINE_BIN";
     const APP_ROOT: &str = "MK_FUSION";
     env::set_var(WORKER_NUMBER_ENV, 5.to_string());
-    env::set_var(COMBINER_BIN, r"D:\projects\py\outlines\dist\outline.exe");
+    env::set_var(OUTLINE_BIN, r"D:\projects\py\outlines\dist\outline.exe");
     env::set_var(APP_ROOT, r"D:\Users\yuqi01.chen\.temp\app\mobiuskit\fusion");
     Ok(())
 }

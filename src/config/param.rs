@@ -29,6 +29,7 @@ pub struct FusionTask {
     pub destination: PathBuf,
     pub mode: FusionMode,
     pub files: Vec<File>,
+    pub toc_headers: (String, String, String, String),
 }
 
 impl FusionParam {
@@ -160,6 +161,7 @@ fn pdf_combine_task(
         toc,
         &files,
         &task.destination.join(format!("{}.pdf", &task.name)),
+        &task.toc_headers,
     )?;
     Ok(param)
 }
@@ -253,6 +255,7 @@ mod tests {
                         size: 0,
                     },
                 ],
+                toc_headers: ("".into(), "".into(), "".into(), "".into()),
             },FusionTask {
                 name: "listing 2".into(),
                 language: Language::CN,
@@ -274,6 +277,7 @@ mod tests {
                         size: 0,
                     },
                 ],
+                toc_headers: ("".into(), "".into(), "".into(), "".into()),
             }],
         }
     }

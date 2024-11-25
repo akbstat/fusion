@@ -1,5 +1,5 @@
 pub mod combiner;
 pub mod controller;
-pub mod outline;
+pub mod location;
 pub mod toc;
 pub mod worker;

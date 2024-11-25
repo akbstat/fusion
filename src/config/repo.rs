@@ -254,6 +254,7 @@ mod tests {
                         size: 0,
                     },
                 ],
+                toc_headers: ("".into(), "".into(), "".into(), "".into()),
             }, FusionTask {
                 name: "all_listings".into(),
                 language: Language::CN,
@@ -299,6 +300,7 @@ mod tests {
                         size: 0,
                     },
                 ],
+                toc_headers: ("".into(), "".into(), "".into(), "".into()),
             }],
         }
     }

@@ -67,10 +67,13 @@ pub const TEMPLATE: &str = r#"
 <body>
     <div id="toc">
         <div class="header">
-            <div style="margin-bottom: 5px;">{{ company }}</div>
+            <div style="margin-bottom: 5px; display: grid; grid-template-columns: auto auto;">
+                <div>{{ toc_headers.0 }}</div>
+                <div style="text-align: right;">{{ toc_headers.1 }}</div>
+            </div>
             <div style="display: grid; grid-template-columns: auto auto;">
-                <div>{{ study }}</div>
-                <div style="text-align: right;">{{ purpose }}</div>
+                <div>{{ toc_headers.2 }}</div>
+                <div style="text-align: right;">{{ toc_headers.3 }}</div>
             </div>
             <div class="item" style="font-weight: bold; font-size: 20px; text-align: center; height: 40px;">{{ content }}
             </div>
@@ -84,7 +87,7 @@ pub const TEMPLATE: &str = r#"
             {
                 id: "{{ item.id }}",
                 title: "{{ item.title }}",
-                page: "{{ item.page_display }}",
+                page: "{{ item.page + 1 }}",
             },
         {% endfor %}
     ];

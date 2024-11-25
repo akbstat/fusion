@@ -38,6 +38,7 @@ pub struct CombinePDFParam {
     pub(crate) toc_start_pages: usize,
     pub(crate) files: Vec<PDFFile>,
     pub(crate) destination: PathBuf,
+    pub(crate) toc_headers: (String, String, String, String),
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +55,7 @@ impl CombinePDFParam {
         toc: &Path,
         files: &[PDFFile],
         destination: &Path,
+        toc_headers: &(String, String, String, String),
     ) -> anyhow::Result<CombinePDFParam> {
         if !workspace.exists() {
             fs::create_dir_all(&workspace)?;
@@ -66,6 +68,7 @@ impl CombinePDFParam {
             toc_start_pages: 0,
             files: files.to_vec(),
             destination: destination.into(),
+            toc_headers: toc_headers.clone(),
         })
     }
     pub fn update_pages(&mut self) -> anyhow::Result<()> {

@@ -1,4 +1,4 @@
-use super::{combiner::combine, outline::add_outline};
+use super::combiner::PDFCombiner;
 use crate::config::combine::CombinePDFParam;
 use std::{
     path::Path,
@@ -29,53 +29,42 @@ impl PDFCombineWorker {
             loop {
                 let receiver = receiver.lock().unwrap().recv();
                 match receiver {
-                    Ok(mut param) => {
+                    Ok(param) => {
                         let filename = param.destination.clone();
                         let filename = filename.file_stem().unwrap().to_string_lossy();
                         logger
                             .lock()
                             .unwrap()
-                            .send(format!("[INFO] {:?} pdf combine start\n", filename))
+                            .send(format!(
+                                "[INFO] {} pdf combine start\n",
+                                filename.to_string()
+                            ))
                             .ok();
-                        // combine pdfs(with toc)
-                        match combine(&mut param) {
-                            Ok(_) => {
-                                logger
-                                    .lock()
-                                    .unwrap()
-                                    .send(format!("[INFO] {} pdf combine successfully\n", filename))
-                                    .ok();
-                                logger
-                                    .lock()
-                                    .unwrap()
-                                    .send(format!("[INFO] {:?} add outline start\n", filename))
-                                    .ok();
-                                // combine pdf succesfully, then start to build outlines
-                                match add_outline(&param.workspace, &param.to_outline_param(), &bin)
-                                {
-                                    Ok(_) => {
-                                        status.lock().unwrap().send(()).ok();
-                                        logger
-                                            .lock()
-                                            .unwrap()
-                                            .send(format!(
-                                                "[INFO] {} pdf combine complete\n",
-                                                filename
-                                            ))
-                                            .ok();
-                                    }
-                                    Err(err) => {
-                                        logger
-                                            .lock()
-                                            .unwrap()
-                                            .send(format!(
-                                                "[ERROR] {} add outline failed, because: {}\n",
-                                                filename, err
-                                            ))
-                                            .ok();
-                                    }
+                        match PDFCombiner::new(&param, &bin) {
+                            Ok(mut combiner) => match combiner.combine() {
+                                Ok(_) => {
+                                    status.lock().unwrap().send(()).ok();
+                                    logger
+                                        .lock()
+                                        .unwrap()
+                                        .send(format!(
+                                            "[INFO] {} pdf combine successfully\n",
+                                            filename.to_string()
+                                        ))
+                                        .ok();
                                 }
-                            }
+                                Err(err) => {
+                                    logger
+                                        .lock()
+                                        .unwrap()
+                                        .send(format!(
+                                            "[ERROR] {} pdf combine failed, because: {}\n",
+                                            filename, err
+                                        ))
+                                        .ok();
+                                    continue;
+                                }
+                            },
                             Err(err) => {
                                 logger
                                     .lock()
@@ -85,8 +74,9 @@ impl PDFCombineWorker {
                                         filename, err
                                     ))
                                     .ok();
+                                continue;
                             }
-                        };
+                        }
                     }
                     Err(_) => break,
                 }
