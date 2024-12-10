@@ -1,7 +1,8 @@
-use std::path::Path;
-
 use calamine::{open_workbook, DataType, Reader, Xlsx};
+use once_cell::sync::Lazy;
+use regex::{Captures, Regex};
 use serde::Serialize;
+use std::{char, path::Path};
 
 const TARGET_ROWS_START: usize = 1;
 const OUTPUT_NAME_COLUMN: usize = 4;
@@ -40,7 +41,7 @@ pub fn read_top(file: &Path) -> anyhow::Result<Vec<Top>> {
                 continue;
             }
             let name = if let Some(data) = row.get(OUTPUT_NAME_COLUMN) {
-                data.as_string()
+                data.as_string().map(|s| s.to_lowercase())
             } else {
                 None
             };
@@ -50,7 +51,7 @@ pub fn read_top(file: &Path) -> anyhow::Result<Vec<Top>> {
                 None
             };
             let title = if let Some(data) = row.get(TITLE_COLUMN) {
-                data.as_string()
+                data.as_string().map(|s| handle_unicode_declaration(&s))
             } else {
                 None
             };
@@ -96,6 +97,33 @@ fn title_prefix(symbol: &str, language: &ProjectLanguage) -> String {
     }
 }
 
+/// handle unicode decalration in title, such as "PT Rate ≥ 5~{unicode 0025}", "~{unicode 0025}" stands for "%",
+///
+/// unicode declaration using hex code
+fn handle_unicode_declaration(source: &str) -> String {
+    static PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"~\{unicode\s(\d{4})}").unwrap());
+    let replaced = PATTERN.replace_all(source, |cap: &Captures| {
+        if let Some(code) = cap.get(1) {
+            unicode_convert(code.as_str())
+        } else {
+            "".to_string()
+        }
+    });
+    replaced.into()
+}
+
+/// convert unicode in rtf to a char, for example: "0025;" => '%'
+///
+/// if invalid unicode then return empty string
+fn unicode_convert(source: &str) -> String {
+    if let Ok(n) = u32::from_str_radix(source, 16) {
+        if let Some(c) = char::from_u32(n) {
+            return c.into();
+        }
+    }
+    "".into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +136,17 @@ mod tests {
             println!("{:?}", e);
         });
         Ok(())
+    }
+    #[test]
+    fn handle_unicode_declaration_test() {
+        let source = "表 3.1.2.2.3: 整体治疗阶段的TEAE按SOC、PT总结（任意一组别PT发生率 ≥ 1~{unicode 0025}）（安全性分析集）";
+        let dest = handle_unicode_declaration(source);
+        assert_eq!("表 3.1.2.2.3: 整体治疗阶段的TEAE按SOC、PT总结（任意一组别PT发生率 ≥ 1%）（安全性分析集）", dest)
+    }
+
+    #[test]
+    fn unicode_convert_test() {
+        let source = "0025";
+        assert_eq!(unicode_convert(source), "%")
     }
 }
