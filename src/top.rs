@@ -101,7 +101,8 @@ fn title_prefix(symbol: &str, language: &ProjectLanguage) -> String {
 ///
 /// unicode declaration using hex code
 fn handle_unicode_declaration(source: &str) -> String {
-    static PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"~\{unicode\s(\d{4})}").unwrap());
+    static PATTERN: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"~\{unicode\s([A-Za-z0-9]{4})}").unwrap());
     let replaced = PATTERN.replace_all(source, |cap: &Captures| {
         if let Some(code) = cap.get(1) {
             unicode_convert(code.as_str())
@@ -139,14 +140,16 @@ mod tests {
     }
     #[test]
     fn handle_unicode_declaration_test() {
-        let source = "表 3.1.2.2.3: 整体治疗阶段的TEAE按SOC、PT总结（任意一组别PT发生率 ≥ 1~{unicode 0025}）（安全性分析集）";
+        let source = "表 3.1.2.2.3: 整体治疗阶段的TEAE按SOC、PT总结（任意一组别PT发生率 ≥ 1~{unicode 00B5}）（安全性分析集）";
         let dest = handle_unicode_declaration(source);
-        assert_eq!("表 3.1.2.2.3: 整体治疗阶段的TEAE按SOC、PT总结（任意一组别PT发生率 ≥ 1%）（安全性分析集）", dest)
+        assert_eq!("表 3.1.2.2.3: 整体治疗阶段的TEAE按SOC、PT总结（任意一组别PT发生率 ≥ 1µ）（安全性分析集）", dest)
     }
 
     #[test]
     fn unicode_convert_test() {
         let source = "0025";
-        assert_eq!(unicode_convert(source), "%")
+        assert_eq!(unicode_convert(source), "%");
+        let source = "00B5";
+        assert_eq!(unicode_convert(source), "µ");
     }
 }
