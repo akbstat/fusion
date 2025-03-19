@@ -81,7 +81,11 @@ impl Render {
     pub fn print(&self, items: &[Location], dest: &Path) -> anyhow::Result<()> {
         let data = RenderData {
             content: self.content.clone(),
-            items: items.to_vec(),
+            items: items
+                .to_vec()
+                .into_iter()
+                .filter(|item| !item.title.is_empty())
+                .collect::<Vec<Location>>(),
             size: self.size.clone(),
             toc_headers: self.toc_headers.clone(),
         };
