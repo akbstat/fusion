@@ -2,7 +2,7 @@ use super::param::FusionParam;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{create_dir_all, read, remove_file, write, OpenOptions},
+    fs::{create_dir_all, read, remove_dir_all, remove_file, write, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
@@ -24,6 +24,7 @@ pub struct SaveConfigParam {
 pub struct ConfigManager {
     config_dir: PathBuf,
     configs: Vec<Config>,
+    workspace: PathBuf,
     repo: PathBuf,
 }
 
@@ -31,12 +32,14 @@ impl ConfigManager {
     pub fn new(root: &Path) -> Self {
         let repo: PathBuf = root.join("config_repo.json");
         let config_dir = root.join("config");
+        let workspace = root.join("workspace");
         if !config_dir.exists() {
             create_dir_all(&config_dir).unwrap();
         }
         let mut manager = ConfigManager {
             repo,
             config_dir,
+            workspace,
             configs: vec![],
         };
         manager.update();
@@ -104,7 +107,8 @@ impl ConfigManager {
 
     pub fn remove_config(&mut self, id: &str) -> anyhow::Result<()> {
         if let Some(index) = self.find_config_index(id) {
-            remove_file(self.config_dir.join(format!("{}.json", id)))?;
+            remove_file(self.config_dir.join(format!("{}.json", id))).ok();
+            remove_dir_all(self.workspace.join(id)).ok();
             self.configs.swap_remove(index);
             write(&self.repo, &serde_json::to_vec(&self.configs)?)?;
             self.update();
